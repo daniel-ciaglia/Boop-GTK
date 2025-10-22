@@ -135,6 +135,15 @@ impl App {
                 });
         }
 
+        {
+            let source_view: sourceview::View = app.source_view.clone();
+            app.preferences_dialog
+                .connect_config_font_notify(move |font| {
+                    let font_desc = pango::FontDescription::from_string(font);
+                    source_view.override_font(&font_desc);
+                });
+        }
+
         // launch config directory in default file manager
         {
             let config_dir_str = XDG_DIRS
@@ -226,6 +235,10 @@ impl App {
         self.source_view
             .get_sourceview_buffer()?
             .set_style_scheme(scheme.as_ref());
+
+        // update source_view font
+        let font_desc = pango::FontDescription::from_string(&config.editor.font_family);
+        self.source_view.override_font(&font_desc);
 
         Ok(())
     }

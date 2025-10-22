@@ -3,7 +3,8 @@ use std::sync::{Arc, RwLock};
 use eyre::{Context, Result};
 use gladis::Gladis;
 use glib::SignalHandlerId;
-use gtk::{prelude::*, Dialog as GtkDialog, Switch};
+use gtk::{prelude::*, Dialog as GtkDialog, FontButton, Switch};
+use pango::prelude::*;
 use sourceview::{StyleScheme, StyleSchemeChooserExt, StyleSchemeExt, StyleSchemeManagerExt};
 
 use crate::config::Config;
@@ -15,6 +16,8 @@ pub struct Widgets {
 
     color_scheme_button: sourceview::StyleSchemeChooserButton,
     shortcut_switch: Switch,
+    font_button: FontButton,
+    monospace_filter_switch: Switch,
 }
 
 #[derive(Clone, Shrinkwrap)]
@@ -39,6 +42,20 @@ impl Dialog {
         dialog.connect_config_open_shortcuts_on_startup_notify(
             Dialog::on_config_open_shortcuts_on_startup_notify(config.clone()),
         );
+        dialog.connect_config_font_notify(Dialog::on_config_font_notify(config.clone()));
+        dialog.connect_config_monospace_filter_notify(Dialog::on_config_monospace_filter_notify(config.clone()));
+        
+        // Update font filter when monospace filter switch changes
+        {
+            let dialog_clone = dialog.clone();
+            dialog.monospace_filter_switch.connect_state_set(move |_, _| {
+                dialog_clone.update_font_filter();
+                Inhibit(false)
+            });
+        }
+        
+        // Initialize font filter based on config
+        dialog.update_font_filter();
 
         Ok(dialog)
     }
@@ -61,6 +78,13 @@ impl Dialog {
         // update shortcut_switch
         self.shortcut_switch
             .set_state(config.show_shortcuts_on_open);
+
+        // update font_button
+        self.font_button.set_font(&config.editor.font_family);
+
+        // update monospace_filter_switch
+        self.monospace_filter_switch
+            .set_state(config.editor.monospace_filter);
 
         Ok(())
     }
@@ -89,6 +113,24 @@ impl Dialog {
         }
     }
 
+    fn on_config_font_notify(config: Arc<RwLock<Config>>) -> impl Fn(&str) {
+        move |font| {
+            let mut config = config.write().expect("Config lock poisoned");
+            config.editor.set_font_family(font);
+            config.save().expect("Failed to save config");
+        }
+    }
+
+    fn on_config_monospace_filter_notify(config: Arc<RwLock<Config>>) -> impl Fn(bool) -> Inhibit {
+        move |enabled| {
+            let mut config = config.write().expect("Config lock poisoned");
+            config.editor.set_monospace_filter(enabled);
+            config.save().expect("Failed to save config");
+
+            Inhibit(false)
+        }
+    }
+
     pub fn connect_config_style_scheme_notify<F: Fn(Option<StyleScheme>) + 'static>(
         &self,
         f: F,
@@ -103,5 +145,38 @@ impl Dialog {
     ) -> SignalHandlerId {
         self.shortcut_switch
             .connect_state_set(move |_, state| f(state))
+    }
+
+    pub fn connect_config_font_notify<F: Fn(&str) + 'static>(
+        &self,
+        f: F,
+    ) -> SignalHandlerId {
+        self.font_button
+            .connect_font_set(move |button| {
+                if let Some(font_name) = button.get_font() {
+                    f(&font_name);
+                }
+            })
+    }
+
+    pub fn connect_config_monospace_filter_notify<F: Fn(bool) -> Inhibit + 'static>(
+        &self,
+        f: F,
+    ) -> SignalHandlerId {
+        self.monospace_filter_switch
+            .connect_state_set(move |_, state| f(state))
+    }
+
+    fn update_font_filter(&self) {
+        let config = self.config.read().expect("Config lock poisoned");
+        let filter_enabled = config.editor.monospace_filter;
+        
+        if filter_enabled {
+            self.font_button.set_filter_func(Some(Box::new(|family, _face| {
+                family.is_monospace()
+            })));
+        } else {
+            self.font_button.set_filter_func(None);
+        }
     }
 }

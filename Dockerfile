@@ -1,9 +1,16 @@
-# to be run with `docker build -v ${PWD}:/app`
-# binary is located in `./target/release/`
+# to be run with `docker build --output type=local,dest=~/.local/bin/
 
-FROM docker.io/library/debian:stable-slim
-LABEL authors="daniel@sigterm.de"
+FROM docker.io/library/rust:1-slim AS builder
+RUN apt-get update && apt-get install -y \
+    libgtk-3-dev \
+    libgtksourceview-3.0-dev
 
-RUN apt-get update && apt-get install -y -y libgtk-3-dev libgtksourceview-3.0-dev cargo
 WORKDIR /app
-RUN cargo build --release --all-features
+COPY . .
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --all-features && \
+    cp target/release/boop-gtk /tmp/boop-gtk
+
+FROM scratch as exporter
+COPY --from=builder /tmp/boop-gtk .

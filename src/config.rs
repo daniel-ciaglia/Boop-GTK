@@ -4,6 +4,14 @@ use crate::XDG_DIRS;
 use eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+fn default_font_family() -> String {
+    String::from("monospace")
+}
+
+fn default_monospace_filter() -> bool {
+    true
+}
+
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -12,14 +20,21 @@ pub struct Config {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(default)]
 pub struct Editor {
     pub colour_scheme_id: String,
+    #[serde(default = "default_font_family")]
+    pub font_family: String,
+    #[serde(default = "default_monospace_filter")]
+    pub monospace_filter: bool,
 }
 
 impl Default for Editor {
     fn default() -> Self {
         Editor {
             colour_scheme_id: String::from("classic"),
+            font_family: String::from("monospace"),
+            monospace_filter: true,
         }
     }
 }
@@ -75,5 +90,13 @@ impl Config {
 impl Editor {
     pub fn set_colour_scheme_id(&mut self, id: &str) {
         self.colour_scheme_id = String::from(id);
+    }
+
+    pub fn set_font_family(&mut self, font: &str) {
+        self.font_family = String::from(font);
+    }
+
+    pub fn set_monospace_filter(&mut self, enabled: bool) {
+        self.monospace_filter = enabled;
     }
 }
