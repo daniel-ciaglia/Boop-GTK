@@ -12,6 +12,14 @@ fn default_monospace_filter() -> bool {
     true
 }
 
+fn default_light_scheme() -> String {
+    String::from("solarized-light")
+}
+
+fn default_dark_scheme() -> String {
+    String::from("solarized-dark")
+}
+
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -27,6 +35,14 @@ pub struct Editor {
     pub font_family: String,
     #[serde(default = "default_monospace_filter")]
     pub monospace_filter: bool,
+    
+    // System theme sync configuration
+    #[serde(default)]
+    pub sync_with_system_theme: bool,
+    #[serde(default = "default_light_scheme")]
+    pub light_scheme_id: String,
+    #[serde(default = "default_dark_scheme")]
+    pub dark_scheme_id: String,
 }
 
 impl Default for Editor {
@@ -35,6 +51,9 @@ impl Default for Editor {
             colour_scheme_id: String::from("classic"),
             font_family: String::from("monospace"),
             monospace_filter: true,
+            sync_with_system_theme: false,
+            light_scheme_id: String::from("solarized-light"),
+            dark_scheme_id: String::from("solarized-dark"),
         }
     }
 }
@@ -98,5 +117,29 @@ impl Editor {
 
     pub fn set_monospace_filter(&mut self, enabled: bool) {
         self.monospace_filter = enabled;
+    }
+
+    pub fn set_sync_with_system_theme(&mut self, enabled: bool) {
+        self.sync_with_system_theme = enabled;
+    }
+
+    pub fn set_light_scheme_id(&mut self, id: &str) {
+        self.light_scheme_id = String::from(id);
+    }
+
+    pub fn set_dark_scheme_id(&mut self, id: &str) {
+        self.dark_scheme_id = String::from(id);
+    }
+
+    pub fn get_current_scheme_id(&self, is_dark_mode: bool) -> &str {
+        if self.sync_with_system_theme {
+            if is_dark_mode {
+                &self.dark_scheme_id
+            } else {
+                &self.light_scheme_id
+            }
+        } else {
+            &self.colour_scheme_id
+        }
     }
 }

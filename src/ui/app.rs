@@ -13,7 +13,7 @@ use eyre::{Context, Result};
 use gdk_pixbuf::prelude::*;
 use gladis::Gladis;
 use glib::SourceId;
-use gtk::{prelude::*, Label, Revealer};
+use gtk::{prelude::*, Label, Revealer, Settings};
 use sourceview::{prelude::*, Language};
 
 use executor::{ExecutorError, TextReplacement};
@@ -78,6 +78,14 @@ impl App {
 
         app.configure(boop_language)?;
         app.update_state_from_config()?;
+        
+        // Setup system theme monitoring if enabled
+        {
+            let config = app.config.read().map_err(|e| eyre!("Config lock poisoned: {}", e))?;
+            if config.editor.sync_with_system_theme {
+                app.setup_system_theme_monitoring()?;
+            }
+        }
 
         // close notification on dismiss
         {
@@ -141,6 +149,35 @@ impl App {
                 .connect_config_font_notify(move |font| {
                     let font_desc = pango::FontDescription::from_string(font);
                     source_view.override_font(&font_desc);
+                });
+        }
+
+        // Connect system theme sync notifications
+        {
+            let app_ = app.clone();
+            app.preferences_dialog
+                .connect_config_system_theme_sync_notify(move |enabled| {
+                    if enabled {
+                        app_.setup_system_theme_monitoring().expect("Failed to setup system theme monitoring");
+                    }
+                    app_.update_theme_from_config().expect("Failed to update theme from config");
+                    Inhibit(false)
+                });
+        }
+
+        {
+            let app_ = app.clone();
+            app.preferences_dialog
+                .connect_config_light_scheme_notify(move |_| {
+                    app_.update_theme_from_config().expect("Failed to update theme from config");
+                });
+        }
+
+        {
+            let app_ = app.clone();
+            app.preferences_dialog
+                .connect_config_dark_scheme_notify(move |_| {
+                    app_.update_theme_from_config().expect("Failed to update theme from config");
                 });
         }
 
@@ -228,7 +265,8 @@ impl App {
             .map_err(|e| eyre!("Config lock poisoned: {}", e))?;
 
         // update source_view style scheme
-        let scheme_id = &config.editor.colour_scheme_id;
+        let is_dark_mode = self.is_system_dark_mode();
+        let scheme_id = config.editor.get_current_scheme_id(is_dark_mode);
         let scheme = sourceview::StyleSchemeManager::get_default()
             .ok_or_else(|| eyre!("Failed to get default style scheme manager"))?
             .get_scheme(scheme_id);
@@ -417,6 +455,51 @@ impl App {
         }
 
         self.source_view.grab_focus();
+
+        Ok(())
+    }
+
+    fn is_system_dark_mode(&self) -> bool {
+        if let Some(settings) = Settings::get_default() {
+            if let Some(theme_name) = settings.get_property_gtk_theme_name() {
+                // Check if theme name contains "dark" (case insensitive)
+                theme_name.to_lowercase().contains("dark")
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    fn setup_system_theme_monitoring(&self) -> Result<()> {
+        if let Some(settings) = Settings::get_default() {
+            let app = self.clone();
+            settings.connect_property_gtk_theme_name_notify(move |_| {
+                if let Err(e) = app.update_theme_from_config() {
+                    error!("Failed to update theme: {}", e);
+                }
+            });
+        }
+        Ok(())
+    }
+
+    fn update_theme_from_config(&self) -> Result<()> {
+        let config = self
+            .config
+            .read()
+            .map_err(|e| eyre!("Config lock poisoned: {}", e))?;
+
+        if config.editor.sync_with_system_theme {
+            let is_dark_mode = self.is_system_dark_mode();
+            let scheme_id = config.editor.get_current_scheme_id(is_dark_mode);
+            let scheme = sourceview::StyleSchemeManager::get_default()
+                .ok_or_else(|| eyre!("Failed to get default style scheme manager"))?
+                .get_scheme(scheme_id);
+            self.source_view
+                .get_sourceview_buffer()?
+                .set_style_scheme(scheme.as_ref());
+        }
 
         Ok(())
     }
