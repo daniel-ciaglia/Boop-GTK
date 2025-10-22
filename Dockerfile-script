@@ -1,0 +1,13 @@
+# to be run with `docker build -v ${PWD}:/app`
+# script is located in `./boop-scripts/pem-decode/target`
+# See: https://github.com/IvanMathy/Boop/blob/main/Boop/Documentation/ConvertingNodeModules.md
+
+FROM docker.io/library/node:lts
+LABEL authors="daniel@sigterm.de"
+
+WORKDIR /app/boop-scripts/pem-decode/src
+RUN npm init -y && npm install node-forge
+RUN npx -y browserify PEMCertificateDecoder.js -o tmp/PEMCertificateDecoderBundle.js
+WORKDIR /app/boop-scripts/pem-decode/
+RUN mkdir -p target
+RUN cat src/PEMCertificateDecoder_header.js src/tmp/PEMCertificateDecoderBundle.js > target/PEMCertificateDecoder.js

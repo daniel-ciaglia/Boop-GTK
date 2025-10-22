@@ -16,3 +16,9 @@ resources/resources.xml
 /boop-gtk.windows
 boop-gtk.windows.msi
 /result
+
+# JetBrains IDEs
+.idea
+# my scripts
+boop-scripts/**/node_modules
+boop-scripts/**/target
