@@ -174,7 +174,11 @@ global.main = function(state) {
 
     output += '\n' + '='.repeat(70) + '\n';
 
-    state.text = output;
+    if (state.isSelection) {
+      state.selection = output;
+    } else {
+      state.text = output;
+    }
 
   } catch (error) {
     state.postError('Error decoding certificate: ' + error.message);
