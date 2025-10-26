@@ -1,0 +1,3 @@
+[submodule "boop-scripts/upstream"]
+	path = boop-scripts/upstream
+	url = git@github.com:IvanMathy/Boop
